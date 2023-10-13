@@ -1,4 +1,5 @@
 
+//imporing express cors logicfile multer db file path and jwt
 const express=require('express')
 const cors=require('cors')
 const logic=require('./services/logic')
@@ -6,20 +7,25 @@ const multer=require('multer')
 const db=require('./services/db')
 const path=require('path')
 const jwt=require('jsonwebtoken')
+require('dotenv').config()
 
 
 //Schema
 
-
+//creating server using express
 const server=express()
+//connecting frontend with backend
 server.use(cors({
     origin:'http://localhost:4200'
 }))
 
+//for getting the response as json data
 server.use(express.json())
+
+//for getting the images we need to change the images folder to a static public folder
 server.use("/images",express.static('images'));
 
-
+//connecting the server to port 5000
 server.listen(5000,()=>{
    console.log('server connected to port 5000')
 })
@@ -29,22 +35,24 @@ const jwtmiddleware=(req,res,next)=>{
     console.log('inside jwt token middleware')
 
     try {
-        const token=req.headers["shots-token"]
+        const token=req.headers["shots-token"] //getting token through headers
         console.log(token)
-        const data=jwt.verify(token,'shots_key_2023')
+        const data=jwt.verify(token,'shots_key_2023') //verifying token
         console.log(data)
         next()
         
         
     } catch (error) {
+        //throwing error if no token found or token doesnt match
         res.status(400).json('Please login')
     }
 }
 
-//setting storage
+//setting up the function for storing the image
 const imageStorage = multer.diskStorage({
     // Destination to store image     
     destination: 'images', 
+    //creating a unique filename
       filename: (req, file, cb) => {
           cb(null, file.fieldname + '_' + Date.now() 
              + path.extname(file.originalname))
@@ -52,8 +60,11 @@ const imageStorage = multer.diskStorage({
     }
 });
 
+//setting up function for uploading an image
 const imageUpload = multer({
+    //giving the storage as storage function
     storage: imageStorage,
+    //filesize
     limits: {
       fileSize: 1000000 //size of file
     }
@@ -61,15 +72,19 @@ const imageUpload = multer({
 }) 
   
 
-
-server.post('/social/uploadFile/:userId',imageUpload.any(),jwtmiddleware, (req, res) => {
+//uploading the post to the server
+server.post('/social/uploadFile/:userId',imageUpload.any(),jwtmiddleware, (req, res) => { 
+    //placing the image upload function after the path
     console.log('Inside upload file api request')
     
     console.log(req.files)
     console.log(req.params.userId)
+    //setting date for sorting
     var date=new Date
+    //uploading the details to the mongodb
     logic.uploadDetails(req.params.userId,req.files[0].destination,req.files[0].filename,req.files[0].path,date).then((response)=>{
         console.log(response)
+        //making a like document on heart collection
         logic.startLikes(req.files[0].filename).then((response)=>{
             
         })
@@ -88,6 +103,7 @@ server.get('/social',(req,res)=>{
     console.log('on main page')
 })
 
+//registering an account
 server.post('/social/register',(req,res)=>{
     console.log('inside register api call')
     logic.registerUser(req.body.Name,req.body.Email,req.body.Password).then((response)=>{
@@ -95,6 +111,7 @@ server.post('/social/register',(req,res)=>{
     })
 })
 
+//for logging in to the account
 server.post('/social/login',(req,res)=>{
     console.log('Inside login api call')
     logic.login(req.body.Email,req.body.Password).then((response)=>{
@@ -102,12 +119,7 @@ server.post('/social/login',(req,res)=>{
     })
 })
 
-// server.post('/social/post',(req,res)=>{
-//     console.log('Inside post api call')
-//     logic.uploadPost(req.body.userId,req.body.ImageId,req.body.Caption).then((response)=>{
-//         res.status(response.statuscode).json(response)
-//     })
-// })
+
 
 server.get('/social/getdetails/:InstaId',jwtmiddleware,(req,res)=>{
     console.log('Inside getdetails api call')
@@ -241,13 +253,7 @@ server.get('/social/getlikes/:filname',jwtmiddleware,(req,res)=>{
     })
 })
 
-//unliking
-server.put('/social/unlike/:filname',jwtmiddleware,(req,res)=>{
-    console.log('inside un likes call')
-    logic.unLike(req.params.filname,req.body.likeId).then((response)=>{
-        res.status(response.statuscode).json(response)  
-    })
-})
+
 
 //deleting a post
 server.put('/social/deletepost/:userId',jwtmiddleware,(req,res)=>{
@@ -265,16 +271,18 @@ server.post('/social/updateprofile/:userId',jwtmiddleware,(req,res)=>{
     })
 })
 
-//chamge password
-server.post('/social/changepassword',(req,res)=>{
-    logic.changePassword(req.body.Email,req.body.Password).then((response)=>{
-        res.status(response.statuscode).json(response)  
-    })
-})
+
 
 //change password from inside profile
 server.post('/social/changepasswordfromprofile/:userId',jwtmiddleware,(req,res)=>{
     logic.changePasswordFromProfile(req.params.userId,req.body.Password).then((response)=>{
+        res.status(response.statuscode).json(response)  
+    })
+})
+
+//change password outside profile
+server.post('/social/changepassword',(req,res)=>{
+    logic.changePassword(req.body.Email,req.body.Password).then((response)=>{
         res.status(response.statuscode).json(response)  
     })
 })
@@ -292,5 +300,35 @@ server.put('/social/removepeoplewhofollow',jwtmiddleware,(req,res)=>{
     logic.removePeopleWhoFollow(req.body._id,req.body.followId).then((response)=>{
         res.status(response.statuscode).json(response) 
  
+    })
+})
+
+//add inividual likes to manipulate dom
+server.post('/social/addindividuallikes',jwtmiddleware,(req,res)=>{
+    console.log('inside individual likes call')
+    logic.individualLiking(req.body.filename,req.body.likeId).then((response)=>{
+        res.status(response.statuscode).json(response) 
+    })
+})
+
+//getting the individual likes
+server.get('/social/individual/:likeId',jwtmiddleware,(req,res)=>{
+    console.log('inside individual like')
+    logic.getIndividualLikes(req.params.likeId).then((response)=>{
+        res.status(response.statuscode).json(response)
+    })
+})
+
+//change password request
+server.post('/social/changepass',(req,res)=>{
+    logic.getOtp(req.body.Email).then((response)=>{
+        res.status(response.statuscode).json(response)
+    })
+})
+
+//change password after otp
+server.post('/social/changepass2',(req,res)=>{
+    logic.changePassword(req.body.Email,req.body.Password).then((response)=>{
+        res.status(response.statuscode).json(response) 
     })
 })
